@@ -5,71 +5,84 @@ using UnityEngine.UIElements;
 public class AIUnitBehaviour : MonoBehaviour
 {
     private float engagementRange = 100;
-    
-    private float attackRange;
+
+    private float attackRange = 100;
 
     LayerMask unitLayerMask;
 
     private I_IFFChallengeable myIFF;
 
-    List<Unit> detectableEnemies;
+    List<Unit> detectableEnemies = new List<Unit>();
 
-    Unit currentTarget = null;
+    Unit Target = null;
 
     Launcher launcher;
 
     TurretControl turret;
 
+    TankLocomotion movement;
+
     private void Start()
     {
         launcher = GetComponentInChildren<Launcher>();
+
         turret = GetComponentInChildren<TurretControl>();
+
         unitLayerMask = LayerMask.GetMask("Unit");
+
         myIFF = GetComponent<I_IFFChallengeable>();
     }
 
     private void Update()
     {
-        if (Input.GetKey(KeyCode.Q))
-        {
-
-        }
-    }
-
-    private void FixedUpdate()
-    {
         FindTargets();
-
-        currentTarget = SelectTarget();
-
-        if(currentTarget != null)
-        {
-            Debug.DrawLine(transform.position, currentTarget.transform.position, Color.yellow);
-
-            Vector3 toTarget = currentTarget.transform.position - transform.position;
-
-        }
         
+        Target = SelectTarget();
+
+        ShotCheck(Target);
     }
 
-    public bool ShotCheck(Unit target, float angleTolerance)
+
+    public void ShotCheck(Unit target)
     {
-        //LOS check
-        Vector3 toTarget = target.transform.position - transform.position;
-
-
-        //distance check
-        Vector3 ToTarget = target.transform.position - transform.position;
-        float distance = ToTarget.magnitude;
-        if (distance > attackRange)
+        if (target == null)
         {
-            return false;
+            launcher.CeaseTriggerPull();
+            turret.SetDesiredAngularVelocity(0);
         }
+        else
+        {
+            if (movement.IsStoppedMoving())
+            {
+                launcher.BeginTriggerPull();
+            }
+            else
+            {
+                launcher.CeaseTriggerPull();
+            }
 
-        //Shot angle check
-       
 
-        return false;
+            Vector3 toTarget = target.transform.position - turret.transform.position;
+
+            float angleTotarget = Vector3.SignedAngle(turret.transform.forward, toTarget, Vector3.up);
+
+            float angleError = Mathf.Abs(angleTotarget);
+
+            if (angleError < 5)
+            {
+                turret.SetDesiredAngularVelocity(0);
+            }
+            else if (angleTotarget < 0)
+            {
+                turret.SetDesiredAngularVelocity(-100);
+            }
+            else if (angleTotarget > 0)
+            {
+                turret.SetDesiredAngularVelocity(100);
+            }
+
+            Debug.DrawLine(transform.position, target.transform.position, Color.red);
+        }
     }
 
     private Unit SelectTarget()
@@ -77,7 +90,7 @@ public class AIUnitBehaviour : MonoBehaviour
         float closestUnitDistance = 0f;
         Unit closestUnit = null;
 
-        foreach(Unit potentialTarget in detectableEnemies)
+        foreach (Unit potentialTarget in detectableEnemies)
         {
             float distance = Vector3.Distance(transform.position, potentialTarget.transform.position);
             if (distance <= closestUnitDistance)
@@ -90,7 +103,7 @@ public class AIUnitBehaviour : MonoBehaviour
         return closestUnit;
     }
 
-    public void FindTargets()
+    void FindTargets()
     {
         detectableEnemies.Clear();
 
@@ -122,6 +135,7 @@ public class AIUnitBehaviour : MonoBehaviour
                 }
             }
         }
+
     }
 
 }
