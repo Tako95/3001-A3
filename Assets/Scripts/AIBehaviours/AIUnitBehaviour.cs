@@ -8,134 +8,129 @@ using UnityEngine.UIElements;
 public class AIUnitBehaviour : MonoBehaviour
 {
     private float engagementRange = 100;
-
-    private float attackRange = 150;
+    private float attackRange = 50;
 
     LayerMask unitLayerMask;
 
-    private I_IFFChallengeable myIFF;
+    List<Unit> detectedEnemies = new List<Unit>();
 
-    List<Unit> detectableEnemies = new List<Unit>();
-
-    Unit Target = null;
+    TurretControl turretControl;
 
     Launcher launcher;
 
-    TurretControl turret;
-
-    TankLocomotion movement;
+    Unit Target = null;
 
     private void Start()
     {
-        launcher = GetComponentInChildren<Launcher>();
-
-        turret = GetComponentInChildren<TurretControl>();
-
         unitLayerMask = LayerMask.GetMask("Unit");
 
-        myIFF = GetComponent<I_IFFChallengeable>();
+        turretControl = GetComponentInChildren<TurretControl>();
+
+        launcher = GetComponentInChildren<Launcher>();
     }
 
     private void Update()
     {
-        FindTargets();
-        
-        Target = SelectTarget();
+        DetectEnemyUnits();
 
-        ShotCheck(Target);
+        Target = FindNearest(detectedEnemies);
+
+        Attack(Target);
     }
 
-
-    public void ShotCheck(Unit target)
+    private void Attack(Unit Target)
     {
-        if (target == null)
+        if (Target == null && attackRange >= 50)
         {
             launcher.CeaseTriggerPull();
-            turret.SetDesiredAngularVelocity(0);
+
+            turretControl.SetDesiredAngularVelocity(0);
         }
         else
         {
-            if (movement.IsStoppedMoving())
-            {
-                launcher.BeginTriggerPull();
-            }
-            else
+            bool isMoving = GetComponent<Rigidbody>().velocity.magnitude > 0.5;
+
+            if (isMoving == true)
             {
                 launcher.CeaseTriggerPull();
             }
-
-            Vector3 toTarget = target.transform.position - turret.transform.position;
-            float angleTotarget = Vector3.SignedAngle(turret.transform.forward, toTarget, Vector3.up);
-            float angleError = Mathf.Abs(angleTotarget);
-
-            if (angleError < 5)
+            else if (isMoving == false)
             {
-                turret.SetDesiredAngularVelocity(0);
-            }
-            else if (angleTotarget < 0)
-            {
-                turret.SetDesiredAngularVelocity(-100);
-            }
-            else if (angleTotarget > 0)
-            {
-                turret.SetDesiredAngularVelocity(100);
+                launcher.BeginTriggerPull();
             }
 
-            Debug.DrawLine(transform.position, target.transform.position, Color.red);
+            //launcher.BeginTriggerPull();
+
+            Vector3 toTarget = Target.transform.position - turretControl.transform.position;
+            float angleToTarget = Vector3.SignedAngle(turretControl.transform.forward, toTarget, Vector3.up);
+            float angleError = Mathf.Abs(angleToTarget);
+
+            if (angleError < 10)
+            {
+                turretControl.SetDesiredAngularVelocity(angleToTarget);
+            }
+            else if(angleToTarget < 0)
+            {
+                turretControl.SetDesiredAngularVelocity(-600);
+            }
+            else if (angleToTarget > 0)
+            {
+                turretControl.SetDesiredAngularVelocity(600);  
+            }
+
+            Debug.DrawLine(transform.position, Target.transform.position, Color.red);
         }
     }
 
-    private Unit SelectTarget()
+    private Unit FindNearest(List<Unit> detectedEnemies)
     {
-        float closestUnitDistance = 0f;
+        float closestDistance = float.PositiveInfinity;
         Unit closestUnit = null;
 
-        foreach (Unit potentialTarget in detectableEnemies)
+        foreach(Unit unit in detectedEnemies)
         {
-            float distance = Vector3.Distance(transform.position, potentialTarget.transform.position);
-            if (distance <= closestUnitDistance)
+            float distance = Vector3.Distance(unit.transform.position, transform.position);
+
+            if (distance < closestDistance)
             {
-                closestUnit = potentialTarget;
-                closestUnitDistance = distance;
+                closestUnit = unit;
+                closestDistance = distance;
             }
         }
 
         return closestUnit;
     }
 
-    void FindTargets()
+    private void DetectEnemyUnits()
     {
-        detectableEnemies.Clear();
+        detectedEnemies.Clear();
+
+        Team MyTeam = GetComponent<Unit>().Team;
 
         Collider[] colliders = Physics.OverlapSphere(transform.position, engagementRange, unitLayerMask);
-
+       
         foreach (Collider collider in colliders)
         {
-            Unit unit = collider.GetComponent<Unit>();
+            Unit contact = collider.GetComponent<Unit>();
+            if (contact == null) continue;
 
-            if (unit != null)
+            bool isMyTeam = (contact.Team == MyTeam);
+
+            if (isMyTeam == true) continue;
+
+            Vector3 ToEnemy = collider.transform.position - transform.position;
+            Ray LOSRay = new Ray(transform.position, ToEnemy);
+
+            bool didhit = Physics.Raycast(LOSRay, out RaycastHit hitInfo, engagementRange);
+            if (didhit)
             {
-                Debug.Log("Found: " + unit.name);
-
-                if (unit.Team == myIFF.Team) continue;
-
-                Vector3 toOther = collider.transform.position - transform.position;
-
-                Ray rayToOther = new Ray(transform.position, toOther.normalized);
-
-                RaycastHit HitInfo;
-
-                if (Physics.Raycast(rayToOther, out HitInfo, engagementRange))
+                if (hitInfo.collider == collider)
                 {
-                    if (HitInfo.collider == collider)
-                    {
-                        detectableEnemies.Add(unit);
-                        Debug.DrawLine(transform.position, unit.transform.position, Color.yellow, Time.fixedDeltaTime, false);
-                    }
+                    detectedEnemies.Add(contact);
+
+                    Debug.DrawLine(transform.position, contact.transform.position, Color.yellow);
                 }
             }
         }
-
     }
-
 }
