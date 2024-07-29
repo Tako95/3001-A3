@@ -1,3 +1,6 @@
+//name: Philip Okoye
+//ID: 101484841
+
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -6,7 +9,7 @@ public class AIUnitBehaviour : MonoBehaviour
 {
     private float engagementRange = 100;
 
-    private float attackRange = 100;
+    private float attackRange = 150;
 
     LayerMask unitLayerMask;
 
@@ -61,11 +64,8 @@ public class AIUnitBehaviour : MonoBehaviour
                 launcher.CeaseTriggerPull();
             }
 
-
             Vector3 toTarget = target.transform.position - turret.transform.position;
-
             float angleTotarget = Vector3.SignedAngle(turret.transform.forward, toTarget, Vector3.up);
-
             float angleError = Mathf.Abs(angleTotarget);
 
             if (angleError < 5)
